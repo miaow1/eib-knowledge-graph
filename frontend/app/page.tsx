@@ -40,7 +40,12 @@ import { DEFAULT_PHYSICS, type PhysicsSettings } from "@/components/GraphCanvas"
 import { PredictionsView } from "@/components/PredictionsPanel";
 import { FactorAnalysisView } from "@/components/FactorAnalysisPanel";
 
-type ActiveTab = "graph" | "predictions" | "factors" | "report";
+type ActiveTab = "graph" | "predictions" | "stockDirection" | "factors" | "report";
+
+function supportsTab(features: Set<string>, tab: ActiveTab): boolean {
+  // The stock view is a UI preview alongside KG prediction, not a data capability.
+  return features.has(tab === "stockDirection" ? "predictions" : tab);
+}
 
 const GraphCanvas = dynamic(
   () => import("@/components/GraphCanvas").then((m) => m.GraphCanvas),
@@ -247,7 +252,7 @@ export default function Home() {
     if (!sources) return;
     const currentSource = sources.sources.find((s) => s.id === activeSourceId);
     const features = new Set(currentSource?.features ?? ["graph"]);
-    if (!features.has(activeTab)) {
+    if (!supportsTab(features, activeTab)) {
       setActiveTab(
         features.has("graph")
           ? "graph"
@@ -608,7 +613,7 @@ export default function Home() {
         {/* Safari-style tab strip. Only tabs the current source supports
             are rendered — no grey placeholders. Right-side tools shown per
             active tab (KG gets a merged/single toggle). */}
-        <div className="flex shrink-0 items-end gap-1 border-b border-border bg-muted/60 px-2 pt-2">
+        <div className="flex shrink-0 flex-wrap items-end gap-1 border-b border-border bg-muted/60 px-2 pt-2">
           {(() => {
             const currentSource = sources?.sources.find(
               (s) => s.id === activeSourceId
@@ -616,10 +621,11 @@ export default function Home() {
             const features = new Set(currentSource?.features ?? ["graph"]);
             return [
               { id: "graph" as const, label: "Knowledge graph" },
-              { id: "predictions" as const, label: "Predictions" },
+              { id: "predictions" as const, label: "KG Prediction" },
+              { id: "stockDirection" as const, label: "Stock Directional Prediction" },
               { id: "factors" as const, label: "Factor analysis" },
               { id: "report" as const, label: "Report" },
-            ].filter((t) => features.has(t.id));
+            ].filter((t) => supportsTab(features, t.id));
           })().map((tab) => {
             const active = activeTab === tab.id;
             return (
@@ -762,6 +768,31 @@ export default function Home() {
                   monthTo={monthTo}
                 />
               )
+            ) : activeTab === "stockDirection" ? (
+              <section
+                aria-labelledby="stock-direction-heading"
+                className="h-full overflow-y-auto px-4 py-6 sm:px-8 sm:py-10"
+              >
+                <div className="mx-auto max-w-2xl">
+                  <span className="inline-flex rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                    Prototype
+                  </span>
+                  <h2 id="stock-direction-heading" className="mt-3 text-2xl font-semibold tracking-tight">
+                    Stock Directional Prediction
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    This view is intended to show whether a stock is more likely
+                    to close higher or lower at the next session close.
+                  </p>
+                  <div className="mt-6 rounded-lg border border-border bg-muted/30 p-4 sm:p-5">
+                    <h3 className="text-sm font-semibold">No forecasts available</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      The stock model is not connected to this dashboard. This
+                      preview does not show live or historical predictions.
+                    </p>
+                  </div>
+                </div>
+              </section>
             ) : activeTab === "factors" ? (
               activeSourceId && (
                 <FactorAnalysisView sourceId={activeSourceId} />
@@ -821,7 +852,7 @@ export default function Home() {
             gat.py). Hidden on Factor analysis: the factor bundle is
             always the latest rolling window, so the timeline would be a
             dead control there. */}
-        {activeTab !== "factors" && activeTab !== "report" && (
+        {(activeTab === "graph" || activeTab === "predictions") && (
           <TimeSlider
             months={actualMonths}
             futureMonths={futureMonths}
